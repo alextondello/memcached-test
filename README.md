@@ -17,7 +17,8 @@ This script evaluates the performance of connection pools in the memcache-plus n
 
 3. Run the test script:
 
-- Execute the script to display the average timings for read and write operations on your memcached instance.
+- Execute the script to display the average timings for read and write operations on your memcached instance:
+  `node index.js`
 
 4. Adjust the pool size:
 
@@ -26,3 +27,5 @@ This script evaluates the performance of connection pools in the memcache-plus n
 5. Re-run the script:
 
 - Check the performance again to see if adjusting the pool size improves the timing results.
+- Want to see debug logs for the new implementation? Just run:
+  `DEBUG=memcache-plus:connection-pool node index.js`
