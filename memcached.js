@@ -1,14 +1,12 @@
-const MemcachePlus = require("./lib");
+const MemcachePlus = require("./lib/client");
 
-const environment = "production";
-const noMemcache = false;
-const inMemoryCache = {};
-const Cache = noMemcache
-  ? null
-  : new MemcachePlus({
-      hosts: null,
-      poolSize: 1,
-    });
+const ENV = "production";
+const POOL_SIZE = 1;
+
+const Cache = new MemcachePlus({
+  hosts: null, // null = localhost:11211
+  poolSize: POOL_SIZE,
+});
 
 const serializeDateTime = function (obj) {
   if (!obj) {
@@ -42,53 +40,35 @@ const deserializeDateTime = function (obj) {
 };
 
 const getCacheKey = function (key, scope, environmentOverride) {
-  return `${environmentOverride || environment}|${key}|${scope}`;
+  return `${environmentOverride || ENV}|${key}|${scope}`;
+  const POOL_SIZE = 1;
 };
 
 const getValue = async function (key, scope, environmentOverride = null) {
   const cacheKey = getCacheKey(key, scope, environmentOverride);
+  let result;
 
-  if (noMemcache) {
-    const result = await Promise.resolve(inMemoryCache[cacheKey]);
-    deserializeDateTime(result);
-    return result;
-  } else {
-    let result;
-
-    try {
-      // const hrtime = process.hrtime();
-
-      result = await Cache.get(cacheKey);
-
-      // const [seconds, nanoseconds] = process.hrtime(hrtime);
-      // const executionDurationMs = seconds * 1000 + nanoseconds / 1e6;
-      // console.log(`Reading from memcached took ${executionDurationMs.toFixed(2)}ms`);
-    } catch (error) {
-      console.error(
-        `[memcached][getValue] failed to get value from memcached key: ${cacheKey}, error: ${error.message}`
-      );
-      return null;
-    }
-
-    deserializeDateTime(result);
-
-    return result;
+  try {
+    result = await Cache.get(cacheKey);
+  } catch (error) {
+    console.error(`[memcached][getValue] failed to get value from memcached key: ${cacheKey}, error: ${error.message}`);
+    return null;
   }
+
+  deserializeDateTime(result);
+
+  return result;
 };
 
 const getValues = async function (keys, scope, environmentOverride = null) {
   let cachedValues;
 
-  if (noMemcache) {
-    cachedValues = inMemoryCache;
-  } else {
-    const cacheKeys = keys.map((key) => getCacheKey(key, scope, environmentOverride));
-    try {
-      cachedValues = await Cache.getMulti(cacheKeys);
-    } catch (error) {
-      console.error(`[memcached][getValues] failed to getMulti: ${error.message}`);
-      return null;
-    }
+  const cacheKeys = keys.map((key) => getCacheKey(key, scope, environmentOverride));
+  try {
+    cachedValues = await Cache.getMulti(cacheKeys);
+  } catch (error) {
+    console.error(`[memcached][getValues] failed to getMulti: ${error.message}`);
+    return null;
   }
 
   const result = {};
@@ -110,33 +90,20 @@ const setValue = async function (key, scope, value, environmentOverride = null, 
 
   serializeDateTime(value);
 
-  if (noMemcache) {
-    // Let's simulate that the data is being stored in the actual memcached. This
-    // is required for testing the actual behavior of objects being stored in cache.
-    // If we just insert the object in memory, when we get the data and updated it
-    // we'll be changing the underlying in-memory javascript object reference.
-    // A straightforward Object.assign({}, value) will not work because it'll only work for
-    // first-level props, and there's some nested objects (JS dates for example) that won't be
-    // copied properly. This is why we need to cast to string and back to object.
-    const valueString = JSON.stringify(value);
-    inMemoryCache[cacheKey] = JSON.parse(valueString);
-    return null;
-  } else {
-    try {
-      // const hrtime = process.hrtime();
+  try {
+    // const hrtime = process.hrtime();
 
-      await Cache.set(cacheKey, value, ttl);
+    await Cache.set(cacheKey, value, ttl);
 
-      // const [seconds, nanoseconds] = process.hrtime(hrtime);
-      // const executionDurationMs = seconds * 1000 + nanoseconds / 1e6;
-      // console.log(`Writing to memcached took ${executionDurationMs.toFixed(2)}ms`);
-    } catch (error) {
-      console.error(`[memcached][setValue] failed to save value on memcached: ${error?.message}`);
-      return null;
-    }
-
+    // const [seconds, nanoseconds] = process.hrtime(hrtime);
+    // const executionDurationMs = seconds * 1000 + nanoseconds / 1e6;
+    // console.log(`Writing to memcached took ${executionDurationMs.toFixed(2)}ms`);
+  } catch (error) {
+    console.error(`[memcached][setValue] failed to save value on memcached: ${error?.message}`);
     return null;
   }
+
+  return null;
 };
 
 const appendValue = async function (key, scope, value, environmentOverride = null) {
@@ -145,21 +112,14 @@ const appendValue = async function (key, scope, value, environmentOverride = nul
 
   serializeDateTime(value);
 
-  if (noMemcache) {
-    if (inMemoryCache[cacheKey] !== undefined && inMemoryCache[cacheKey] !== null) {
-      inMemoryCache[cacheKey] = `${inMemoryCache[cacheKey]}${value}`;
-    }
-    return Promise.resolve(null);
-  } else {
-    try {
-      await Cache.append(cacheKey, value, ttl);
-    } catch (error) {
-      console.error(`[memcached][setValue] failed to append value on memcached: ${error?.message}`);
-      return null;
-    }
-
+  try {
+    await Cache.append(cacheKey, value, ttl);
+  } catch (error) {
+    console.error(`[memcached][setValue] failed to append value on memcached: ${error?.message}`);
     return null;
   }
+
+  return null;
 };
 
 const incrementValue = async function (key, scope, value = 1, environmentOverride = null) {
@@ -169,31 +129,24 @@ const incrementValue = async function (key, scope, value = 1, environmentOverrid
 
   const cacheKey = getCacheKey(key, scope, environmentOverride);
 
-  if (noMemcache) {
-    if (!isNaN(inMemoryCache[cacheKey])) {
-      inMemoryCache[cacheKey] = Number(inMemoryCache[cacheKey]) + Number(value);
-    }
-    return null;
-  } else {
-    if (Number(value) < 0) {
-      // If incrementValue is called with a negative value, then use decr.
-      try {
-        await Cache.decr(cacheKey, Number(value));
-      } catch (error) {
-        console.error(`[memcached][incrementValue] failed to decr value on memcached: ${error?.message}`);
-      }
-
-      return null;
-    }
-
+  if (Number(value) < 0) {
+    // If incrementValue is called with a negative value, then use decr.
     try {
-      await Cache.incr(cacheKey, Number(value));
+      await Cache.decr(cacheKey, Number(value));
     } catch (error) {
-      console.error(`[memcached][incrementValue] failed to incr value on memcached: ${error?.message}`);
+      console.error(`[memcached][incrementValue] failed to decr value on memcached: ${error?.message}`);
     }
 
     return null;
   }
+
+  try {
+    await Cache.incr(cacheKey, Number(value));
+  } catch (error) {
+    console.error(`[memcached][incrementValue] failed to incr value on memcached: ${error?.message}`);
+  }
+
+  return null;
 };
 
 module.exports.getValue = getValue;
