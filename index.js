@@ -3,16 +3,12 @@ const Memcached = require("./memcached.js");
 // Variables
 const array = Array.from({ length: 1_000 }, (_, i) => i);
 const text = "a".repeat(10);
-const read = [];
-const write = [];
 
 // Functions
 const waitMs = async (ms) => await new Promise((resolve) => setTimeout(resolve, ms));
 
-const calculateAverage = (array) => {
-  if (!array || array.length === 0) return 0;
-  const sum = array.reduce((accumulator, currentValue) => accumulator + currentValue, 0);
-  return sum / array.length;
+const calculateAverage = (duration) => {
+  return duration / array.length;
 };
 
 const calculateDuration = (hrtimeStart) => {
@@ -28,28 +24,26 @@ const calculateDuration = (hrtimeStart) => {
   /**
    * Write test
    */
+  const startWrite = process.hrtime();
   for (const i of array) {
-    const start = process.hrtime();
     await Memcached.setValue(`${i}`, "value", text);
-    write.push(calculateDuration(start));
   }
+  const writeDuration = calculateDuration(startWrite);
 
   /**
    * Read test
    */
+  const startRead = process.hrtime();
   for (const i of array) {
-    const start = process.hrtime();
     await Memcached.getValue(`${i}`, "value");
-    read.push(calculateDuration(start));
   }
+  const readDuration = calculateDuration(startRead);
 
   /**
-   * Calculate averages
+   * Show results
    */
-  const readAverage = calculateAverage(read);
-  const writeAverage = calculateAverage(write);
-  console.log(` Average read: ${readAverage.toFixed(4)}ms`);
-  console.log(`Average write: ${writeAverage.toFixed(4)}ms`);
+  console.log(`SET: ${writeDuration.toFixed(2)}ms (${calculateAverage(writeDuration).toFixed(2)}ms average)`);
+  console.log(`GET: ${readDuration.toFixed(2)}ms (${calculateAverage(readDuration).toFixed(2)}ms average)`);
 
   /**
    * Bye, bye...
