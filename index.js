@@ -7,6 +7,8 @@ const read = [];
 const write = [];
 
 // Functions
+const waitMs = async (ms) => await new Promise((resolve) => setTimeout(resolve, ms));
+
 const calculateAverage = (array) => {
   if (!array || array.length === 0) return 0;
   const sum = array.reduce((accumulator, currentValue) => accumulator + currentValue, 0);
@@ -21,6 +23,8 @@ const calculateDuration = (hrtimeStart) => {
 
 // Main execution
 (async () => {
+  await waitMs(500);
+
   /**
    * Write test
    */
