@@ -149,6 +149,7 @@ const incrementValue = async function (key, scope, value = 1, environmentOverrid
   return null;
 };
 
+module.exports.POOL_SIZE = POOL_SIZE;
 module.exports.getValue = getValue;
 module.exports.getValues = getValues;
 module.exports.setValue = setValue;
